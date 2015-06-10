@@ -1,6 +1,6 @@
 # application is mandatory
 # later on the web, we might use some other name
-application: slack-auto-invites
+application: gophers-ir-autoinvite
 
 # version is mandatory
 version: 1-0
