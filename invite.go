@@ -1,20 +1,22 @@
 // package main
 
-package slack_auto_invites
+package slackautoinvites
 
 import (
-	"appengine"
-	"appengine/urlfetch"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+
+	"appengine"
+	"appengine/urlfetch"
 )
 
+//Configuration is configuration for slack team
 type Configuration struct {
-	BaseUrl string
-	Token   string
+	BaseURL string `json:"base_url"`
+	Token   string `json:"token"`
 }
 
 func importConfiguration() (string, string) {
@@ -25,16 +27,16 @@ func importConfiguration() (string, string) {
 	if err != nil {
 		fmt.Println("error:", err)
 	}
-	return configuration.BaseUrl, configuration.Token
+	return configuration.BaseURL, configuration.Token
 }
 
-func SetSlackToken(req *http.Request, token string) {
+func setSlackToken(req *http.Request, token string) {
 	q := req.URL.Query()
 	q.Set("token", token)
 	req.URL.RawQuery = q.Encode()
 }
 
-func SetFormValues(req *http.Request, fname string, lname string, email string) {
+func setFormValues(req *http.Request, fname string, lname string, email string) {
 	q := req.URL.Query()
 	q.Set("first_name", fname)
 	q.Set("last_name", lname)
@@ -44,31 +46,31 @@ func SetFormValues(req *http.Request, fname string, lname string, email string) 
 	req.URL.RawQuery = q.Encode()
 }
 
-func SendInvite(r *http.Request, fname string, lname string, email string) string {
+func sendInvite(r *http.Request, fname string, lname string, email string) (string, error) {
 	// client := &http.Client{}
 
 	c := appengine.NewContext(r)
 	client := urlfetch.Client(c)
 
-	baseUrl, token := importConfiguration()
+	baseURL, token := importConfiguration()
 
-	req, _ := http.NewRequest("POST", baseUrl, nil)
+	req, _ := http.NewRequest("POST", baseURL, nil)
 
-	SetSlackToken(req, token)
-	SetFormValues(req, fname, lname, email)
+	setSlackToken(req, token)
+	setFormValues(req, fname, lname, email)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Request error is: ", err)
+		return "", err
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Reading of response error is: ", err)
+		return "", err
 	}
 
-	return string(body)
+	return string(body), nil
 	// TODO - add error checking for body of response
 	// success: {"ok":true}
 	// failure: {"ok":false,"error":"already_in_team"}
@@ -80,8 +82,11 @@ func inviteHandler(w http.ResponseWriter, r *http.Request) {
 		lname := r.FormValue("lname")
 		email := r.FormValue("email")
 
-		slack_resp := SendInvite(r, fname, lname, email)
-		fmt.Fprintf(w, slack_resp)
+		slackResp, err := sendInvite(r, fname, lname, email)
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+		fmt.Fprintf(w, slackResp)
 	} else {
 		fmt.Fprintf(w, "No form values given. Please supply first name, last name, and email.")
 	}
@@ -89,5 +94,5 @@ func inviteHandler(w http.ResponseWriter, r *http.Request) {
 
 func init() {
 	// func main() {
-	http.HandleFunc("/", inviteHandler)
+	http.HandleFunc("/invite", inviteHandler)
 }
